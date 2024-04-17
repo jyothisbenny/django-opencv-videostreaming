@@ -77,7 +77,7 @@ class VideoViewSet(viewsets.ModelViewSet):
         return queryset
 
     @action(detail=False, methods=['GET', 'POST', 'PUT'])
-    def video_mgmt(self, request, pk=None):
+    def video_mgmt(self, request):
         if request.method == 'GET':
             queryset = Video.objects.filter(owner=request.user.pk)
             self.filterset_class = VideoFilter
