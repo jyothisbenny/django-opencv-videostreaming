@@ -28,3 +28,16 @@ class UserPermissions(BasePermission):
     list_perms = IsSuperUser()
     login_perms = AllowAny()
     logout_perms = IsAuthenticated()
+
+
+class VideoPermissions(BasePermission):
+    metadata_perms = AllowAny()
+    enough_perms = None
+    global_perms = None
+    retrieve_perms = IsSuperUser()
+    create_perms = AllowAny()
+    update_perms = IsAuthenticated()
+    partial_update_perms = IsAuthenticated()
+    destroy_perms = IsSuperUser()
+    list_perms = IsAuthenticated()
+    video_mgmt_perms = IsAuthenticated()

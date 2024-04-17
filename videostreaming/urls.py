@@ -20,20 +20,19 @@ from rest_framework.routers import DefaultRouter
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
-from accounts.views import UserViewSet
+from accounts.views import UserViewSet, VideoViewSet
 from accounts.permissions import AllowAny
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
+router.register(r'video', VideoViewSet, basename='user')
 
 schema_view = get_schema_view(
     openapi.Info(
         title="API",
         default_version='v1',
         description="Video Streaming APIs",
-    ),
-    public=True,
-    permission_classes=(AllowAny,),
+    )
 )
 
 urlpatterns = [

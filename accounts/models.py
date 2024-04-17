@@ -19,3 +19,9 @@ class User(AbstractBaseUser, TimeStampedModel):
     email = models.EmailField(max_length=255, null=True, blank=True, unique=True)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['name']
+
+
+class Video(TimeStampedModel):
+    name = models.CharField(max_length=255, blank=True, null=True)
+    url = models.URLField(blank=True, null=True)
+    owner = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)

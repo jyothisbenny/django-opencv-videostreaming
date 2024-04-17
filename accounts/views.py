@@ -5,10 +5,11 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import login, get_user_model, logout
 from django.contrib.auth.models import update_last_login
-from .permissions import UserPermissions
-from .serializers import UserSerializer
-from .filters import UserFilter
-from .models import User
+from .permissions import UserPermissions, VideoPermissions
+from .serializers import UserSerializer, VideoSerializer
+from .filters import UserFilter, VideoFilter
+from .models import User, Video
+from .services import create_update_record
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -56,3 +57,34 @@ class UserViewSet(viewsets.ModelViewSet):
             Token.objects.filter(user=request.user).delete()
             logout(request)
         return Response({'message': 'Successfully logged out.'}, status=status.HTTP_200_OK)
+
+
+class VideoViewSet(viewsets.ModelViewSet):
+    """
+    Here we have video management API's
+    """
+    queryset = Video.objects.all()
+    permission_classes = (VideoPermissions,)
+    serializer_class = VideoSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = None
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        queryset = queryset.all()
+        self.filterset_class = VideoFilter
+        queryset = self.filter_queryset(queryset)
+        return queryset
+
+    @action(detail=False, methods=['GET', 'POST', 'PUT'])
+    def video_mgmt(self, request, pk=None):
+        if request.method == 'GET':
+            queryset = Video.objects.filter(owner=request.user.pk)
+            self.filterset_class = VideoFilter
+            queryset = self.filter_queryset(queryset)
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                return self.get_paginated_response(VideoSerializer(page, many=True).data, status=status.HTTP_200_OK)
+            return Response(VideoSerializer(queryset, many=True).data, status=status.HTTP_200_OK)
+        else:
+            return Response(create_update_record(request, VideoSerializer, Video))
