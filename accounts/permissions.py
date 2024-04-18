@@ -41,3 +41,4 @@ class VideoPermissions(BasePermission):
     destroy_perms = IsSuperUser()
     list_perms = IsAuthenticated()
     video_mgmt_perms = IsAuthenticated()
+    stream_perms = AllowAny()

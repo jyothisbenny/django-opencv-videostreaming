@@ -1,3 +1,10 @@
+import cv2
+import pafy
+
+import queue
+from threading import Thread
+
+from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -5,11 +12,12 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import login, get_user_model, logout
 from django.contrib.auth.models import update_last_login
+
 from .permissions import UserPermissions, VideoPermissions
 from .serializers import UserSerializer, VideoSerializer
 from .filters import UserFilter, VideoFilter
 from .models import User, Video
-from .services import create_update_record
+from .services import create_update_record, get_best_stream_url
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -88,3 +96,25 @@ class VideoViewSet(viewsets.ModelViewSet):
             return Response(VideoSerializer(queryset, many=True).data, status=status.HTTP_200_OK)
         else:
             return Response(create_update_record(request, VideoSerializer, Video))
+
+    @action(detail=False, methods=['GET'])
+    def stream(self, request):
+        video_id = request.query_params.get('id', None)
+        instance = Video.objects.filter(id=video_id).first()
+        if not video_id or not instance:
+            return Response({'message': 'Invalid Video Id!'}, status=status.HTTP_400_BAD_REQUEST)
+        url = instance.url
+        best_stream = get_best_stream_url(url)
+
+        def generate_frames():
+            cap = cv2.VideoCapture(best_stream)
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                _, buffer = cv2.imencode('.jpg', frame)
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+
+        response = HttpResponse(generate_frames(), content_type='multipart/x-mixed-replace; boundary=frame')
+        return response
