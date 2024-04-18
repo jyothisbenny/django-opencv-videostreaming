@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Video
+from .models import User, Video, Machine, ProductionLog
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -34,3 +34,24 @@ class VideoSerializer(serializers.ModelSerializer):
     @staticmethod
     def get_owner_data(obj):
         return UserSerializer(obj.owner).data if obj.owner else None
+
+
+class MachineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Machine
+        fields = '__all__'
+        extra_kwargs = {'machine_name': {'required': True}, 'machine_serial_no': {'required': True}}
+
+
+class ProductionLogSerializer(serializers.ModelSerializer):
+    oee = serializers.SerializerMethodField(required=False)
+
+    class Meta:
+        model = ProductionLog
+        fields = '__all__'
+        extra_kwargs = {'machine': {'required': True}, 'cycle_no': {'write_only': True}, 'cycle_no': {'write_only': True}}
+
+    @staticmethod
+    def get_oee(obj):
+
+        return 0

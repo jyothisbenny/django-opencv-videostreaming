@@ -1,9 +1,7 @@
 import cv2
-import pafy
-
-import queue
-from threading import Thread
-
+from datetime import timedelta
+from django.utils import timezone
+from django.db.models import F
 from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
@@ -14,9 +12,9 @@ from django.contrib.auth import login, get_user_model, logout
 from django.contrib.auth.models import update_last_login
 
 from .permissions import UserPermissions, VideoPermissions
-from .serializers import UserSerializer, VideoSerializer
-from .filters import UserFilter, VideoFilter
-from .models import User, Video
+from .serializers import UserSerializer, VideoSerializer, MachineSerializer, ProductionLogSerializer
+from .filters import UserFilter, VideoFilter, MachineFilter, ProductionLogFilter
+from .models import User, Video, Machine, ProductionLog
 from .services import create_update_record, get_best_stream_url
 
 
@@ -32,7 +30,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        queryset = queryset.filter(is_active=True)
+        queryset = queryset.all()
         self.filterset_class = UserFilter
         queryset = self.filter_queryset(queryset)
         return queryset
@@ -118,3 +116,68 @@ class VideoViewSet(viewsets.ModelViewSet):
 
         response = HttpResponse(generate_frames(), content_type='multipart/x-mixed-replace; boundary=frame')
         return response
+
+    @action(detail=False, methods=['GET', 'POST', 'PUT'])
+    def video_mgmt(self, request):
+        if request.method == 'GET':
+            queryset = Video.objects.filter(owner=request.user.pk)
+            self.filterset_class = VideoFilter
+            queryset = self.filter_queryset(queryset)
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                return self.get_paginated_response(VideoSerializer(page, many=True).data, status=status.HTTP_200_OK)
+            return Response(VideoSerializer(queryset, many=True).data, status=status.HTTP_200_OK)
+        else:
+            return Response(create_update_record(request, VideoSerializer, Video))
+
+    @action(detail=False, methods=['GET', 'POST', 'PUT'], serializer_class=MachineSerializer,
+            filterset_class=MachineFilter, queryset=Machine)
+    def machines(self, request):
+        if request.method == 'GET':
+            queryset = Machine.objects.filter(is_active=True)
+            self.filterset_class = MachineFilter
+            queryset = self.filter_queryset(queryset)
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                return self.get_paginated_response(MachineSerializer(page, many=True).data, status=status.HTTP_200_OK)
+            return Response(MachineSerializer(queryset, many=True).data, status=status.HTTP_200_OK)
+        else:
+            return Response(create_update_record(request, MachineSerializer, Machine))
+
+    @action(detail=False, methods=['GET', 'POST', 'PUT'], serializer_class=ProductionLogSerializer,
+            filterset_class=ProductionLogFilter, queryset=ProductionLog)
+    def production_log(self, request):
+        if request.method == 'GET':
+            queryset = ProductionLog.objects.filter(is_active=True)
+            self.filterset_class = ProductionLogFilter
+            queryset = self.filter_queryset(queryset)
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                return self.get_paginated_response(ProductionLogSerializer(page, many=True).data,
+                                                   status=status.HTTP_200_OK)
+            return Response(ProductionLogSerializer(queryset, many=True).data, status=status.HTTP_200_OK)
+        else:
+            return Response(create_update_record(request, ProductionLogSerializer, ProductionLog))
+
+    @action(detail=False, methods=['GET'])
+    def oee(self, request):
+        queryset = ProductionLog.objects.filter(is_active=True)
+        self.filterset_class = ProductionLogFilter
+        queryset = self.filter_queryset(queryset)
+
+        available_time = 3 * 8
+        ideal_cycle_time = 5
+        available_operating_time = queryset.count() * ideal_cycle_time
+        unplanned_downtime = available_time - available_operating_time
+        actual_output = queryset.count()
+        duration_queryset = queryset.annotate(duration=F('end_time') - F('start_time'))
+        duration_threshold = timedelta(minutes=5)
+        good_product = duration_queryset.filter(duration=duration_threshold).distinct().count()
+        bad_product = duration_queryset.exclude(duration=duration_threshold).distinct().count()
+        total_product = good_product + bad_product
+
+        availability = ((available_time - unplanned_downtime) / available_time) * 100
+        performance = ((ideal_cycle_time - actual_output) / available_operating_time) * 100
+        quality = (good_product / total_product) * 100
+        oee = availability * performance * quality
+        return Response({'data': {'oee': oee}}, status=status.HTTP_200_OK)
